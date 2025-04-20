@@ -1,6 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+// PreviewPanel Component
 
-export default function PreviewPanel({ 
+import { useEffect, useState,useRef } from "react";
+
+const PreviewPanel = ({ 
   image,
   isProcessing,
   progress,
@@ -11,21 +13,20 @@ export default function PreviewPanel({
   handleMouseUp,
   PRESET_ROOMS,
   isDrawingMode,
-  refreshTrigger,
   texture,
-}) {
+  refreshTrigger,
+}) => {
   const fallbackImage = PRESET_ROOMS?.[0]?.url;
   const [showProcessingComplete, setShowProcessingComplete] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
   const [comparePosition, setComparePosition] = useState(50);
   const previewContainerRef = useRef(null);
   const [originalImageData, setOriginalImageData] = useState(null);
-console.log(texture)
+console.log(progress)
   // Capture original image data when texture changes
   useEffect(() => {
-    console.log("first")
-
     if (!canvasRef.current || !texture) return;
+    
     const canvas = canvasRef.current;
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
@@ -39,21 +40,29 @@ console.log(texture)
   // Handle canvas initialization and updates
   useEffect(() => {
     const canvas = isDrawingMode ? drawingCanvasRef.current : canvasRef.current;
-    if (canvas && (image || fallbackImage)) {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+    if (canvas) {
+      // Use clientWidth/clientHeight instead of offsetWidth/offsetHeight
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
       
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const bgImage = new Image();
-      bgImage.src = image || fallbackImage;
-      bgImage.onload = () => {
-        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-      };
+      // Only resize if dimensions changed
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+  
+      if (image || fallbackImage) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+        const bgImage = new Image();
+        bgImage.src = image || fallbackImage;
+        bgImage.onload = () => {
+          ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        };
+      }
     }
   }, [isDrawingMode, image, fallbackImage, refreshTrigger]);
-
   // Handle processing completion
   useEffect(() => {
     if (isProcessing && progress === 100) {
@@ -67,13 +76,14 @@ console.log(texture)
 
   // Handle mouse move for comparison slider
   const handleCompareMove = (e) => {
-    if (!previewContainerRef.current ) return;
+    if (!previewContainerRef.current) return;
     
     const container = previewContainerRef.current;
     const rect = container.getBoundingClientRect();
     const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
     setComparePosition(x);
   };
+
   return (
     <div className="w-full h-full">
       <div 
@@ -120,7 +130,7 @@ console.log(texture)
         )}
 
         {/* Comparison overlay */}
-        { originalImageData && (
+        {originalImageData &&progress===100 && (
           <>
             <div 
               className="absolute inset-0 z-20 pointer-events-none"
@@ -167,4 +177,6 @@ console.log(texture)
       </div>
     </div>
   );
-}
+};
+
+export default PreviewPanel;

@@ -7,6 +7,8 @@ export default function UploadRoomPanel({
   setTexture,
   image,
   setImage,
+  showControls,
+  setShowControls,
 }) {
   const [uploadedImage, setUploadedImage] = useState(null);
 
@@ -16,6 +18,7 @@ export default function UploadRoomPanel({
       const reader = new FileReader();
       reader.onload = () => setUploadedImage(reader.result);
       reader.readAsDataURL(file);
+      setShowControls(true);
     }
     handleImageUpload(e, "room");
   };
@@ -67,6 +70,7 @@ export default function UploadRoomPanel({
               onClick={() => {
                 setUploadedImage(room.url);
                 setImage(room.url);
+                setShowControls(true);
               }}
               className="block w-full rounded overflow-hidden border hover:border-blue-400 transition"
             >

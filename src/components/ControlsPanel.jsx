@@ -1,5 +1,5 @@
-
-export default function ControlsPanel({
+// ControlsPanel Component
+const ControlsPanel = ({
   image,
   texture,
   isDrawingMode,
@@ -28,34 +28,9 @@ export default function ControlsPanel({
   PRESET_TEXTURES,
   refreshTrigger,
   refreshCanvases,
-}) {
- 
-
+}) => {
   return (
     <section className="bg-[#FAFBF8] p-3 rounded-lg shadow text-sm flex flex-col gap-4 overflow-x-auto border border-gray-200">
-      {/* Texture Scroll Strip */}
-      <div className="flex flex-col">
-        <label className="text-gray-700 mb-2 font-medium">Textures</label>
-        <div className="flex flex-row space-x-2 overflow-x-auto max-w-xs pr-1">
-          {PRESET_TEXTURES.map((t, index) => (
-            <button
-              key={index}
-              onClick={() => setTexture(t.url)}
-              className={`flex-shrink-0 w-16 h-16 border-2 rounded hover:border-blue-400 ${
-                texture === t.url ? 'border-blue-500' : 'border-gray-300'
-              }`}
-            >
-              <img
-                src={t.url}
-                alt={t.name}
-                className="w-full h-full object-cover"
-              />
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Controls Panel */}
       <div className="flex-1 min-w-[220px] text-xs text-gray-700 space-y-2">
         {/* Drawing Tools */}
         <div className="bg-white p-2 rounded border border-gray-300">
@@ -122,8 +97,19 @@ export default function ControlsPanel({
             onClick={refreshCanvases}
             className="w-full py-1 rounded bg-gray-100 hover:bg-gray-200 border border-gray-300 flex items-center justify-center gap-2"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
             Refresh Canvas
           </button>
@@ -187,28 +173,9 @@ export default function ControlsPanel({
             />
           </div>
         </div>
-
-        {/* Apply Button */}
-        <div>
-          <button
-            onClick={() => {
-              applyTexture();
-              setTimeout(()=>{
-                applyTexture()
-              },500)
-              setIsDrawingMode(false);
-            }}
-            disabled={
-              !image || !texture || isProcessing || floorAreas.length === 0
-            }
-            className={`w-full py-2 text-white rounded ${
-              isProcessing ? 'bg-blue-400' : 'bg-blue-500 hover:bg-blue-600'
-            } disabled:bg-gray-300`}
-          >
-            {isProcessing ? `Applying... ${progress}%` : "✨ Apply Texture"}
-          </button>
-        </div>
       </div>
     </section>
   );
-}
+};
+
+export default ControlsPanel;
