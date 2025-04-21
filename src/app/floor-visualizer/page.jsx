@@ -67,22 +67,7 @@ export default function FloorVisualizer() {
     window.location.reload();
   };
 
-  // Get accurate cursor position accounting for canvas scaling
-  const getCursorPosition = (e) => {
-    if (!drawingCanvasRef.current) return { x: 0, y: 0 };
-
-    const canvas = drawingCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-
-    // Calculate scaling factors
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
-    };
-  };
+  
 
   // Check if point is near another point
   const isPointNearby = (point1, point2, radius) => {
@@ -102,222 +87,237 @@ export default function FloorVisualizer() {
     return -1;
   };
 
-  // Draw all floor areas with improved accuracy
-  const drawAllAreas = () => {
-    const canvas = drawingCanvasRef.current;
-    if (!canvas) return;
+  // Get accurate cursor position accounting for canvas scaling
+const getCursorPosition = (e) => {
+  if (!drawingCanvasRef.current) return { x: 0, y: 0 };
 
-    const ctx = canvas.getContext("2d");
-    const currentPath = pathPointsRef.current;
-    console.log(currentPath)
+  const canvas = drawingCanvasRef.current;
+  const rect = canvas.getBoundingClientRect();
 
-    // Clear and redraw base image
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const img = new Image();
-    img.src = image;
-    ctx.drawImage(img, 0, 0);
+  // Calculate scaling factors
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
 
-    // Draw all floor areas
-    floorAreasRef.current.forEach((area, areaIndex) => {
-      if (area.length < 2) return;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY,
+  };
+};
 
-      // Draw the polygon
-      ctx.strokeStyle =
-        areaIndex === activeAreaIndex
-          ? "rgba(255, 165, 0, 0.8)"
-          : "rgba(255, 0, 0, 0.8)";
-      ctx.lineWidth = brushSize;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
+// Smooth the points using quadratic Bézier curves
+const smoothPoints = (points, tension = 0.5) => {
+  if (points.length < 3) return points;
+
+  const smoothed = [points[0]];
+  
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const current = points[i];
+    const next = points[i + 1];
+    
+    // Calculate control point
+    const cp1x = current.x + (next.x - prev.x) * tension;
+    const cp1y = current.y + (next.y - prev.y) * tension;
+    
+    smoothed.push({
+      x: cp1x,
+      y: cp1y,
+      control: true
+    });
+    smoothed.push(next);
+  }
+  
+  return smoothed;
+};
+
+// Draw smooth curve through points
+const drawSmoothCurve = (ctx, points, color, lineWidth) => {
+  if (points.length < 2) return;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+
+  if (points.length === 2) {
+    // Straight line if only 2 points
+    ctx.lineTo(points[1].x, points[1].y);
+  } else {
+    // Draw smooth curve for multiple points
+    let i = 1;
+    while (i < points.length - 2) {
+      const xc = (points[i].x + points[i + 1].x) / 2;
+      const yc = (points[i].y + points[i + 1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+      i++;
+    }
+    // Curve through the last two points
+    ctx.quadraticCurveTo(
+      points[i].x,
+      points[i].y,
+      points[i + 1].x,
+      points[i + 1].y
+    );
+  }
+
+  ctx.stroke();
+};
+
+// Draw all floor areas with smooth curves
+const drawAllAreas = () => {
+  const canvas = drawingCanvasRef.current;
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const currentPath = pathPointsRef.current;
+
+  // Clear and redraw base image
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const img = new Image();
+  img.src = image;
+  ctx.drawImage(img, 0, 0);
+
+  // Draw all floor areas
+  floorAreasRef.current.forEach((area, areaIndex) => {
+    if (area.length < 2) return;
+
+    // Draw the smooth polygon
+    const isActive = areaIndex === activeAreaIndex;
+    const strokeColor = isActive ? 'rgba(255, 165, 0, 0.8)' : 'rgba(255, 0, 0, 0.8)';
+    const fillColor = isActive ? 'rgba(255, 165, 0, 0.2)' : 'rgba(100, 200, 255, 0.2)';
+
+    // Draw smooth outline
+    drawSmoothCurve(ctx, area, strokeColor, brushSize);
+
+    // Close and fill if not currently drawing
+    if (!isDrawingRef.current && area.length > 2) {
+      ctx.fillStyle = fillColor;
       ctx.beginPath();
       ctx.moveTo(area[0].x, area[0].y);
-
+      
       for (let i = 1; i < area.length; i++) {
-        ctx.lineTo(area[i].x, area[i].y);
+        const xc = (area[i - 1].x + area[i].x) / 2;
+        const yc = (area[i - 1].y + area[i].y) / 2;
+        ctx.quadraticCurveTo(area[i - 1].x, area[i - 1].y, xc, yc);
       }
+      
+      ctx.closePath();
+      ctx.fill();
+    }
 
-      if (!isDrawingRef.current && area.length > 2) {
-        ctx.closePath();
-      }
-
-      ctx.stroke();
-
-      // Fill if closed
-      if (!isDrawingRef.current && area.length > 2) {
-        ctx.fillStyle =
-          areaIndex === activeAreaIndex
-            ? "rgba(255, 165, 0, 0.2)"
-            : "rgba(100, 200, 255, 0.2)";
+    // Draw points if wireframe is shown
+    if (showWireframe) {
+      area.forEach((point, pointIndex) => {
+        ctx.fillStyle = isActive ? 'orange' : 'red';
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
         ctx.fill();
-      }
 
-      // Draw points
-      if (showWireframe) {
-        area.forEach((point, pointIndex) => {
-          ctx.fillStyle = areaIndex === activeAreaIndex ? "orange" : "red";
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
-          ctx.fill();
+        if (area.length > 2) {
+          ctx.fillStyle = 'white';
+          ctx.font = '10px Arial';
+          ctx.fillText(pointIndex.toString(), point.x + 6, point.y + 4);
+        }
+      });
+    }
+  });
 
-          // Show point index for debugging
-          if (area.length > 2) {
-            ctx.fillStyle = "white";
-            ctx.font = "10px Arial";
-            ctx.fillText(pointIndex.toString(), point.x + 6, point.y + 4);
-          }
-        });
+  // Draw current smooth path
+  if (currentPath.length > 1) {
+    drawSmoothCurve(ctx, currentPath, 'rgba(255, 0, 0, 0.8)', brushSize);
+  }
+};
+
+// Handle mouse down - start new area or continue existing one
+const handleMouseDown = (e) => {
+  if (!isDrawingMode || !drawingCanvasRef.current) return;
+
+  const pos = getCursorPosition(e);
+  isDrawingRef.current = true;
+
+  if (activeAreaIndex === -1) {
+    // Start new area
+    currentAreaRef.current = [pos];
+    floorAreasRef.current.push(currentAreaRef.current);
+    setActiveAreaIndex(floorAreasRef.current.length - 1);
+  }
+  
+  // Start new path
+  pathPointsRef.current = [pos];
+  drawAllAreas();
+};
+
+// Handle mouse move - record points and draw smooth preview
+const handleMouseMove = (e) => {
+  if (!isDrawingMode || !isDrawingRef.current || !drawingCanvasRef.current) return;
+
+  const pos = getCursorPosition(e);
+  pathPointsRef.current.push(pos);
+
+  // Limit points for performance while maintaining smoothness
+  if (pathPointsRef.current.length > 150) {
+    pathPointsRef.current = pathPointsRef.current.filter((_, i) => i % 2 === 0);
+  }
+
+  drawAllAreas();
+};
+
+// Handle mouse up - finalize the area with auto-closing
+const handleMouseUp = () => {
+  if (!isDrawingMode || !isDrawingRef.current) return;
+
+  if (pathPointsRef.current.length > 1 && activeAreaIndex !== -1) {
+    const activeArea = floorAreasRef.current[activeAreaIndex];
+    const smoothedPoints = smoothPoints(pathPointsRef.current);
+    const startPoint = activeArea[0];
+    const lastPoint = smoothedPoints[smoothedPoints.length - 1];
+
+    // Check if we're close to the starting point (within 20 pixels)
+    const shouldCloseArea = (
+      Math.sqrt(
+        Math.pow(lastPoint.x - startPoint.x, 2) + 
+        Math.pow(lastPoint.y - startPoint.y, 2)
+      ) < 20
+    );
+
+    // Add smoothed points to the current area
+    smoothedPoints.forEach(point => {
+      if (!point.control) {
+        activeArea.push(point);
       }
     });
 
-    // Draw connection indicators for nearby points
-    if (
-      isDrawingRef.current &&
-      currentPath.length > 0 &&
-      currentAreaRef.current.length > 0
-    ) {
-      const lastPoint = currentPath[currentPath.length - 1];
-
-      // Check against current area points
-      const nearestIndex = findNearestPoint(
-        lastPoint,
-        currentAreaRef.current,
-        connectionRadius
-      );
-
-      if (nearestIndex >= 0) {
-        const connectPoint = currentAreaRef.current[nearestIndex];
-
-        ctx.strokeStyle = "rgba(0, 255, 0, 0.6)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(connectPoint.x, connectPoint.y);
-        ctx.lineTo(lastPoint.x, lastPoint.y);
-        ctx.stroke();
-
-        // Draw circle around connectable point
-        ctx.strokeStyle = "rgba(0, 255, 0, 0.8)";
-        ctx.beginPath();
-        ctx.arc(
-          connectPoint.x,
-          connectPoint.y,
-          connectionRadius,
-          0,
-          Math.PI * 2
-        );
-        ctx.stroke();
+    // If close to start point, close the area
+    if (shouldCloseArea) {
+      // Remove the last few points that may overlap with start
+      while (activeArea.length > 3 && 
+             Math.sqrt(
+               Math.pow(activeArea[activeArea.length-1].x - startPoint.x, 2) + 
+               Math.pow(activeArea[activeArea.length-1].y - startPoint.y, 2)
+             ) < 10) {
+        activeArea.pop();
       }
+      
+      // Add the start point to close the loop
+      activeArea.push({ ...startPoint });
+      
+      // Mark drawing as complete
+      isDrawingRef.current = false;
+      setActiveAreaIndex(-1); // Deselect the completed area
     }
-
-    // Draw current path with improved accuracy
-    if (currentPath.length > 1) {
-      ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
-      ctx.lineWidth = brushSize;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(currentPath[0].x, currentPath[0].y);
-
-      // For first segment, draw straight line for accuracy
-      if (currentPath.length === 2) {
-        ctx.lineTo(currentPath[1].x, currentPath[1].y);
-      } else {
-        // Apply smoothing to subsequent points
-        for (let i = 1; i < currentPath.length - 2; i++) {
-          const xc = (currentPath[i].x + currentPath[i + 1].x) / 2;
-          const yc = (currentPath[i].y + currentPath[i + 1].y) / 2;
-          ctx.quadraticCurveTo(currentPath[i].x, currentPath[i].y, xc, yc);
-        }
-
-        // Connect to last point
-        ctx.lineTo(
-          currentPath[currentPath.length - 1].x,
-          currentPath[currentPath.length - 1].y
-        );
-      }
-
-      ctx.stroke();
+    // If this was the first segment and not closing, duplicate first point
+    else if (activeArea.length === pathPointsRef.current.length) {
+      activeArea.push({ ...activeArea[0] });
     }
-  };
+  }
 
-  // Handle mouse down with precise starting point and auto-connect
-  const handleMouseDown = (e) => {
-    if (!isDrawingMode || !drawingCanvasRef.current) return;
-
-    const pos = getCursorPosition(e);
-    isDrawingRef.current = true;
-
-    // Check if we're starting a new area or continuing an existing one
-    if (activeAreaIndex === -1) {
-      // Starting a new area
-      currentAreaRef.current = [pos];
-      floorAreasRef.current.push(currentAreaRef.current);
-      setActiveAreaIndex(floorAreasRef.current.length - 1);
-      pathPointsRef.current = [pos];
-    } else {
-      // Continuing the active area
-      const activeArea = floorAreasRef.current[activeAreaIndex];
-
-      // Check if we're near an existing point in the active area
-      const nearestIndex = findNearestPoint(pos, activeArea, connectionRadius);
-
-      if (nearestIndex >= 0) {
-        // Start from the nearby point
-        pathPointsRef.current = [activeArea[nearestIndex], pos];
-      } else {
-        // Start new segment
-        pathPointsRef.current = [pos];
-      }
-    }
-
-    drawAllAreas();
-  };
-
-  // Handle mouse move with accurate positioning
-  const handleMouseMove = (e) => {
-    if (!drawingCanvasRef.current) return;
-
-    const pos = getCursorPosition(e);
-
-    if (isDrawingMode && isDrawingRef.current) {
-      pathPointsRef.current.push(pos);
-
-      // Limit points for performance
-      if (pathPointsRef.current.length > 20) {
-        pathPointsRef.current.shift();
-      }
-
-      drawAllAreas();
-    }
-  };
-  // Handle mouse up - finalize segment with auto-connect
-  const handleMouseUp = () => {
-    if (!isDrawingMode || !isDrawingRef.current) return;
-
-    if (pathPointsRef.current.length > 0 && activeAreaIndex !== -1) {
-      const lastPoint = pathPointsRef.current[pathPointsRef.current.length - 1];
-      const activeArea = floorAreasRef.current[activeAreaIndex];
-
-      // Check if we're ending near an existing point in the active area
-      const nearestIndex = findNearestPoint(
-        lastPoint,
-        activeArea,
-        connectionRadius
-      );
-
-      if (nearestIndex >= 0) {
-        // Connect to the nearby point
-        activeArea.push(activeArea[nearestIndex]);
-      } else {
-        // Add the last point to polygon
-        activeArea.push(lastPoint);
-      }
-    }
-
-    isDrawingRef.current = false;
-    pathPointsRef.current = [];
-    drawAllAreas();
-  };
-
+  isDrawingRef.current = false;
+  pathPointsRef.current = [];
+  drawAllAreas();
+};
   // Close the current active polygon with auto-connect to first point
   const closeCurrentArea = () => {
     if (activeAreaIndex === -1) return;
@@ -402,19 +402,7 @@ export default function FloorVisualizer() {
       height: maxY - minY,
     };
   };
-  // Add this function to capture the original texture before applying new one
-  const captureOriginalTexture = () => {
-    if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    const tempCtx = tempCanvas.getContext("2d");
-    tempCtx.drawImage(canvas, 0, 0);
-
-    setOriginalTextureData(tempCanvas.toDataURL());
-  };
+  
   const applyTexture = async () => {
     // Early return if requirements aren't met
     console.log(texture,"texture")
